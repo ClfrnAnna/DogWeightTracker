@@ -8,11 +8,10 @@ uvicorn api:app --reload --host 0.0.0.0 --port 8000
 
 Сборка Docker образа
 # Сборка с тегом
-docker build -t dog-weight-tracker-api:v4.0.0 .
+docker build -t dog-weight-tracker:v1.0.0 .
 
 # Запуск контейнера
-docker run -p 8000:8000 -v ./data:/app/data dog-weight-tracker-api:v4.0.0
-
+docker run -p 8000:8000 -v ./data:/app/data dog-weight-tracker:v1.0.0
 
 Переменные окружения
 DATA_DIR - путь к директории данных (по умолчанию: /app/data)
@@ -52,7 +51,8 @@ curl -X POST http://localhost:8000/api/dogs/buddy/weight \
   }'
   
   
-  Основные endpoints
+Основные endpoints
+
 Собаки
 GET /api/dogs - список всех собак
 

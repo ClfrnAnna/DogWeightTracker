@@ -35,6 +35,6 @@ Dockerfile.dev
 *.gz
 
 data/*.json
-!data/.keep  # если хотим сохранить пустую директорию
+!data/.keep
 
 *.md
