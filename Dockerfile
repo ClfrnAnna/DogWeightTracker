@@ -19,10 +19,12 @@ RUN pip list --format=freeze
 
 FROM python:3.11-slim AS runtime
 
+ARG BUILD_DATE
+
 LABEL maintainer="Anna Zaitseva"
 LABEL version="1.0.0"
 LABEL description="Dog Weight Tracker REST API"
-LABEL build_date=${BUILD_DATE}
+LABEL build_date=$BUILD_DATE
 LABEL website="https://github.com/ClfrnAnna/DogWeightTracker"
 
 RUN groupadd -r appuser && useradd -r -g appuser -s /bin/false appuser
@@ -39,8 +41,6 @@ COPY --chown=appuser:appuser api.py Dog.py DogRepository.py ./
 RUN mkdir -p /app/data && \
     chown -R appuser:appuser /app && \
     chmod -R 755 /app
-
-RUN ls -la /app
 
 USER appuser
 
