@@ -94,7 +94,7 @@ class HealthResponse(BaseModel):
 async def root():
     return {
         "message": "Dog Weight Tracker API",
-        "version": "4.0.0",
+        "version": "1.0.0",
         "docs": "/api/docs",
         "openapi": "/api/openapi.json"
     }
@@ -108,7 +108,7 @@ async def health_check():
         status="healthy",
         timestamp=datetime.now(),
         service="dog-weight-tracker-api",
-        version="4.0.0",
+        version="1.0.0",
         dogs_count=len(dogs),
         records_count=len(repo.records)
     )
