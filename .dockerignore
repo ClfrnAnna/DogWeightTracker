@@ -4,17 +4,22 @@
 .idea/
 *.bak
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
 .Python
-venv/
 env/
+venv/
 ENV/
+env.bak/
+venv.bak/
+External Libraries/
 
 *.log
-*.sqlite
+*.tmp
+*.temp
 *.db
+data/
 
 dist/
 build/
@@ -29,6 +34,7 @@ coverage/
 docker-compose.yml
 docker-compose.*.yml
 Dockerfile.dev
+dockerignore.bak
 
 *.zip
 *.tar
@@ -37,4 +43,11 @@ Dockerfile.dev
 data/*.json
 !data/.keep
 
+*.swp
+*.swo
+*~
+
 *.md
+README
+README.md
+README.rst

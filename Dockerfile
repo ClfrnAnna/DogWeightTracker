@@ -6,11 +6,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
+COPY requirements.txt .
+
 RUN python -m venv /opt/venv
 
 ENV PATH="/opt/venv/bin:$PATH"
-
-COPY requirements.txt .
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
@@ -33,24 +33,17 @@ WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
 
-ENV PATH="/opt/venv/bin:$PATH"
-
 COPY --chown=appuser:appuser api.py Dog.py DogRepository.py ./
 
-
-RUN mkdir -p /app/data && \
-    chown -R appuser:appuser /app && \
-    chmod -R 755 /app
+RUN mkdir -p /app/data && chown -R appuser:appuser /app
 
 USER appuser
 
-RUN whoami && id
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONPATH=/app
+ENV DATA_DIR=/app/data
 
 EXPOSE 8000
-
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH="/app"
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import sys; import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health'); sys.exit(0)" || exit 1
