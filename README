@@ -1,0 +1,70 @@
+Локальный запуск
+1. Установите зависимости:
+pip install -r requirements.txt
+2. Запустите FastAPI сервер (REST API):
+python api.py
+or 
+uvicorn api:app --reload --host 0.0.0.0 --port 8000
+
+# Сборка с тегом
+docker build -t dog-weight-tracker-api:v4.0.0 .
+
+# Запуск контейнера
+docker run -p 8000:8000 -v ./data:/app/data dog-weight-tracker-api:v4.0.0
+
+API будет доступен по адресу: http://localhost:8000
+Документация: http://localhost:8000/api/docs
+
+bash
+# Получить список всех собак
+curl http://localhost:8000/api/dogs
+
+# Добавить новую собаку
+curl -X POST http://localhost:8000/api/dogs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Мерси",
+    "breed": "Бигль",
+    "ideal_weight": 15,
+    "current_weight": 18,
+    "activity_level": "MEDIUM"
+  }'
+
+# Получить статистику собаки
+curl http://localhost:8000/api/dogs/buddy/statistics
+
+# Добавить запись о весе
+curl -X POST http://localhost:8000/api/dogs/buddy/weight \
+  -H "Content-Type: application/json" \
+  -d '{
+    "weight": 15.5,
+    "notes": "После диеты"
+  }'
+  
+  
+  
+  Основные endpoints
+Собаки
+GET /api/dogs - список всех собак
+
+POST /api/dogs - создать новую собаку
+
+GET /api/dogs/{dog_id} - информация о собаке
+
+PUT /api/dogs/{dog_id} - обновить данные собаки
+
+DELETE /api/dogs/{dog_id} - удалить собаку
+
+Записи о весе
+GET /api/dogs/{dog_id}/records - записи о весе собаки
+
+POST /api/dogs/{dog_id}/weight - добавить запись о весе
+
+Утилиты
+GET /api/health - проверка здоровья
+
+GET /api/calculate/calories - расчет калорий
+
+GET /api/calculate/forecast - прогноз похудения
+
+GET /api/metrics - метрики сервиса

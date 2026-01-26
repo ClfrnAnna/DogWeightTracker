@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  dog-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dog-weight-tracker:v4.0.0
+    container_name: dog-weight-tracker
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - dog-tracker-network
+networks:
+  dog-tracker-network:
+    driver: bridge
+
+volumes:
+  dog-tracker-data:
