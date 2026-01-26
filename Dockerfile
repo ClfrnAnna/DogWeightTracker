@@ -19,12 +19,11 @@ RUN pip list --format=freeze
 
 FROM python:3.11-slim AS runtime
 
-LABEL maintainer="DogWeightTracker Team"
+LABEL maintainer="Anna Zaitseva"
 LABEL version="1.0.0"
 LABEL description="Dog Weight Tracker REST API"
 LABEL build_date=${BUILD_DATE}
-LABEL website="https://github.com/your-repo/dog-tracker"
-
+LABEL website="https://github.com/ClfrnAnna/DogWeightTracker"
 
 RUN groupadd -r appuser && useradd -r -g appuser -s /bin/false appuser
 
