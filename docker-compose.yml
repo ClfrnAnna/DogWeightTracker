@@ -1,39 +1,79 @@
 version: '3.8'
 
 services:
-  api:
+  dog-weight-api:
+    container_name: dog_weight_tracker_api
     build:
       context: .
       dockerfile: Dockerfile
-    image: dog-weight-tracker:1.0.0
-    container_name: dog-tracker
-    restart: unless-stopped
+    image: dog-weight-tracker:${APP_VERSION}
+    restart: always
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     volumes:
-      - dog_data:/app/data
-    environment:
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - TZ=UTC
+      - ./api_logs:/app/logs:rw
+      - ./app_data:/app/data:rw
     networks:
-      - dog-tracker-net
+      dog_network:
+        aliases:
+          - api.dogtracker.local
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "python", "-c", "import sys; import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health'); sys.exit(0)"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
+      start_period: 40s
+    depends_on:
+      dog-weight-db:
+        condition: service_healthy
 
-volumes:
-  dog_data:
-    driver: local
+  dog-weight-db:
+    container_name: dog_weight_tracker_db
+    image: postgres:15-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dog_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  pgadmin:
+    container_name: dog_weight_tracker_pgadmin
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - dog_network
+    depends_on:
+      - dog-weight-db
 
 networks:
-  dog-tracker-net:
+  dog_network:
     driver: bridge
+    name: dog_tracker_network
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  app_data:
+    driver: local

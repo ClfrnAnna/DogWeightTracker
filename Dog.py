@@ -13,12 +13,11 @@ class ActivityLevel(Enum):
 
     @property
     def display_name(self):
-        names = {
-            self.VERY_LOW: "Very low",
-            self.LOW: "Low",
-            self.MEDIUM: "Medium",
-            self.HIGH: "High",
-            self.VERY_HIGH: "Very high"}
+        names = {self.VERY_LOW: "Very low",
+                 self.LOW: "Low",
+                 self.MEDIUM: "Medium",
+                 self.HIGH: "High",
+                 self.VERY_HIGH: "Very high"}
         return names[self]
 
 
@@ -53,12 +52,11 @@ class WeightRecord:
 
     @classmethod
     def from_dict(cls, data):
-        return cls(
-            id=data.get("id"),
-            dog_name=data["dog_name"],
-            date=datetime.fromisoformat(data["date"]),
-            weight=data["weight"],
-            notes=data.get("notes", ""))
+        return cls(id=data.get("id"),
+                   dog_name=data["dog_name"],
+                   date=datetime.fromisoformat(data["date"]),
+                   weight=data["weight"],
+                   notes=data.get("notes", ""))
 
 
 class Dog:
@@ -156,24 +154,22 @@ class Dog:
     def get_statistics(self) -> dict:
         progress = self.get_progress()
 
-        stats = {
-            "id": self.id,
-            "name": self.name,
-            "breed": self.breed,
-            "age": self.age,
-            "current_weight": self.current_weight,
-            "ideal_weight": self.ideal_weight,
-            "weight_to_lose": self.weight_to_lose,
-            "bmi": round(self.bmi, 2),
-            "health_status": self.health_status.value,
-            "activity_level": self.activity_level.value,
-            "activity_level_name": self.activity_level.display_name,
-            "daily_calories_for_loss": self.calculate_daily_calories(for_weight_loss=True),
-            "daily_calories_for_maintenance": self.calculate_daily_calories(for_weight_loss=False),
-            "records_count": len(self.records),
-            "weekly_loss_rate": self.calculate_weekly_loss_rate(),
-            "weeks_to_goal": self.predict_goal_achievement()
-        }
+        stats = {"id": self.id,
+                 "name": self.name,
+                 "breed": self.breed,
+                 "age": self.age,
+                 "current_weight": self.current_weight,
+                 "ideal_weight": self.ideal_weight,
+                 "weight_to_lose": self.weight_to_lose,
+                 "bmi": round(self.bmi, 2),
+                 "health_status": self.health_status.value,
+                 "activity_level": self.activity_level.value,
+                 "activity_level_name": self.activity_level.display_name,
+                 "daily_calories_for_loss": self.calculate_daily_calories(for_weight_loss=True),
+                 "daily_calories_for_maintenance": self.calculate_daily_calories(for_weight_loss=False),
+                 "records_count": len(self.records),
+                 "weekly_loss_rate": self.calculate_weekly_loss_rate(),
+                 "weeks_to_goal": self.predict_goal_achievement()}
 
         if len(progress) >= 2:
             first_weight = progress[0].weight
@@ -185,16 +181,14 @@ class Dog:
         return stats
 
     def to_dict(self) -> dict:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "breed": self.breed,
-            "ideal_weight": self.ideal_weight,
-            "current_weight": self.current_weight,
-            "birth_date": self.birth_date.isoformat() if self.birth_date else None,
-            "activity_level": self.activity_level.value,
-            "created_date": self.created_date.isoformat()
-        }
+        return {"id": self.id,
+                "name": self.name,
+                "breed": self.breed,
+                "ideal_weight": self.ideal_weight,
+                "current_weight": self.current_weight,
+                "birth_date": self.birth_date.isoformat() if self.birth_date else None,
+                "activity_level": self.activity_level.value,
+                "created_date": self.created_date.isoformat()}
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Dog':
@@ -202,13 +196,12 @@ class Dog:
         if data.get("birth_date"):
             birth_date = date.fromisoformat(data["birth_date"])
 
-        dog = cls(
-            name=data["name"],
-            breed=data["breed"],
-            ideal_weight=data["ideal_weight"],
-            current_weight=data["current_weight"],
-            birth_date=birth_date,
-            activity_level=ActivityLevel(data["activity_level"]))
+        dog = cls(name=data["name"],
+                  breed=data["breed"],
+                  ideal_weight=data["ideal_weight"],
+                  current_weight=data["current_weight"],
+                  birth_date=birth_date,
+                  activity_level=ActivityLevel(data["activity_level"]))
 
         if data.get("created_date"):
             dog.created_date = datetime.fromisoformat(data["created_date"])

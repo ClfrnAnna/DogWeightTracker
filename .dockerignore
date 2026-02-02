@@ -7,3 +7,6 @@
 !*.py
 !README*
 !.gitignore
+!init.sql
+!alembic/
+!alembic/**

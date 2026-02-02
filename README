@@ -1,3 +1,5 @@
+Version 1.0.0
+
 Локальный запуск
 1. Установите зависимости:
 pip install -r requirements.txt
@@ -77,3 +79,34 @@ GET /api/calculate/calories - расчет калорий
 GET /api/calculate/forecast - прогноз похудения
 
 GET /api/metrics - метрики сервиса
+
+
+Version 2.0.0
+# Сборка образа
+docker build -t dog-weight-tracker-db .
+
+# Или через Docker Compose
+docker-compose up -d
+
+# Проверка работы
+curl http://localhost:8000/api/health
+
+# Сборка и запуск всех сервисов
+docker-compose up -d --build
+
+# Проверка статуса
+docker-compose ps
+
+# Просмотр логов API
+docker-compose logs -f dog-weight-api
+
+# Остановка всех сервисов
+docker-compose down
+
+# Остановка с удалением volumes (данные БД будут удалены!)
+docker-compose down -v
+
+
+API: http://localhost:8000/api/docs
+
+pgAdmin: http://localhost:5050 (логин из .env файла)
