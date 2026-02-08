@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   dog-weight-api-1:
     container_name: dog_weight_tracker_api_1
@@ -100,6 +102,7 @@ services:
       - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq_conf:/etc/rabbitmq:rw
     networks:
       rabbitmq_network_1:
         aliases:
