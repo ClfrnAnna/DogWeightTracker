@@ -1,6 +1,6 @@
 services:
-  dog-weight-api:
-    container_name: dog_weight_tracker_api
+  dog-weight-api-1:
+    container_name: dog_weight_tracker_api_1
     build:
       context: .
       dockerfile: Dockerfile
@@ -8,15 +8,18 @@ services:
     pull_policy: never
     restart: always
     ports:
-      - "8000:8000"
+      - "8001:8000"
     env_file:
       - .env
     volumes:
-      - ./api_logs:/app/logs:rw
-      - ./app_data:/app/data:rw
+      - ./api_logs_1:/app/logs:rw
+      - ./app_data_1:/app/data:rw
     networks:
-      - dog_network
+      dog_network_1:
+      rabbitmq_network_1:
     command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      - INSTANCE_NUMBER=1
     healthcheck:
       test: ["CMD", "python", "-c", "import sys; import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health'); sys.exit(0)"]
       interval: 30s
@@ -25,6 +28,41 @@ services:
       start_period: 40s
     depends_on:
       dog-weight-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  dog-weight-api-2:
+    container_name: dog_weight_tracker_api_2
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dog-weight-tracker:${APP_VERSION}
+    pull_policy: never
+    restart: always
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./api_logs_2:/app/logs:rw
+      - ./app_data_2:/app/data:rw
+    networks:
+      dog_network_2:
+      rabbitmq_network_2:
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      - INSTANCE_NUMBER=2
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health'); sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      dog-weight-db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   dog-weight-db:
@@ -38,7 +76,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - dog_network
+      dog_network_1:
+        aliases:
+          - dog-db
+      dog_network_2:
+        aliases:
+          - dog-db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -46,13 +89,58 @@ services:
       retries: 5
       start_period: 30s
 
+  rabbitmq:
+    container_name: dog_weight_tracker_rabbitmq
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      rabbitmq_network_1:
+        aliases:
+          - rabbitmq
+      rabbitmq_network_2:
+        aliases:
+          - rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 networks:
-  dog_network:
+  dog_network_1:
     driver: bridge
-    name: dog_tracker_network
+    name: dog_tracker_network_1
+    internal: false
+
+  dog_network_2:
+    driver: bridge
+    name: dog_tracker_network_2
+    internal: false
+
+  rabbitmq_network_1:
+    driver: bridge
+    name: rabbitmq_tracker_network_1
+    internal: false
+
+  rabbitmq_network_2:
+    driver: bridge
+    name: rabbitmq_tracker_network_2
+    internal: false
 
 volumes:
   postgres_data:
     driver: local
-  app_data:
+  app_data_1:
+    driver: local
+  app_data_2:
+    driver: local
+  rabbitmq_data:
     driver: local
