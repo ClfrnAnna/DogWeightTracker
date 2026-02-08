@@ -2,7 +2,7 @@ import os
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Column, String, Float, DateTime, Date, Text, ForeignKey
+from sqlalchemy import Column, String, Float, DateTime, Date, Text, ForeignKey, Integer, text
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from datetime import datetime
@@ -59,8 +59,26 @@ class WeightRecordDB(Base):
                 "date": self.date.isoformat()}
 
 
+class ApplicationLogDB(Base):
+    __tablename__ = "application_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    level = Column(String(10), nullable=False)
+    message = Column(Text, nullable=False)
+    service = Column(String(50), nullable=False)
+
+    def to_dict(self):
+        return {"id": self.id,
+                "timestamp": self.timestamp.isoformat(),
+                "level": self.level,
+                "message": self.message,
+                "service": self.service}
+
+
 async def create_tables():
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"))
         await conn.run_sync(Base.metadata.create_all)
 
 

@@ -15,9 +15,7 @@ services:
       - ./api_logs:/app/logs:rw
       - ./app_data:/app/data:rw
     networks:
-      dog_network:
-        aliases:
-          - api.dogtracker.local
+      - dog_network
     command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import sys; import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health'); sys.exit(0)"]
@@ -39,7 +37,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - dog_network
     healthcheck:
