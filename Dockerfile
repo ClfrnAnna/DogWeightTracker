@@ -35,7 +35,7 @@ WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
 
-COPY --chown=appuser:appuser api.py Dog.py DogDBRepository.py database.py ./
+COPY --chown=appuser:appuser *.py ./
 
 RUN mkdir -p /app/logs && chown -R appuser:appuser /app
 

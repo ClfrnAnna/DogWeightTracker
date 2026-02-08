@@ -25,6 +25,8 @@ docker-data/
 
 *.log
 logs/
+api_logs_1/
+api_logs_2/
 
 .DS_Store
 .DS_Store?
@@ -35,10 +37,11 @@ ehthumbs.db
 Thumbs.db
 
 data/
-api_logs/
 postgres_data/
-pgadmin_data/
-app_data/
+app_data_1/
+app_data_2/
+rabbitmq_data/
+rabbitmq_config/
 
 .coverage
 htmlcov/
@@ -61,3 +64,6 @@ pip-delete-this-directory.txt
 
 *~
 *.swp
+
+.env.instance1
+.env.instance2

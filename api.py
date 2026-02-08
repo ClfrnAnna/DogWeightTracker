@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, HTTPException, Query, Body, Path, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -11,10 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from Dog import Dog, ActivityLevel, WeightRecord
 from DogDBRepository import DogDBRepository
 from database import get_db, create_tables
+from database_setup import create_application_tables
+from rabbitmq_client import get_rabbitmq_client, RabbitMQClient
 
 app = FastAPI(title="Dog Weight Tracker API (Database)",
               description="REST API микросервис для отслеживания веса собак с PostgreSQL",
-              version="2.0.0",
+              version="3.0.0",
               docs_url="/api/docs",
               redoc_url="/api/redoc",
               openapi_url="/api/openapi.json")
@@ -26,11 +30,6 @@ app.add_middleware(CORSMiddleware,
                    allow_headers=["*"])
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-
-@app.on_event("startup")
-async def startup():
-    await create_tables()
 
 
 class ActivityLevelEnum(str, Enum):
@@ -100,7 +99,6 @@ async def root():
             "database": "PostgreSQL"}
 
 
-# Health check
 @app.get("/api/health", response_model=HealthResponse)
 async def health_check(db: AsyncSession = Depends(get_db)):
     repo = DogDBRepository(db)
@@ -364,8 +362,88 @@ async def get_metrics(db: AsyncSession = Depends(get_db)):
             "timestamp": datetime.now().isoformat()}
 
 
+@app.post("/api/dogs/{dog_id}/weight/async", response_model=dict, status_code=status.HTTP_202_ACCEPTED)
+async def add_weight_record_async(dog_id: str = Path(..., description="ID собаки"),
+                                  record_data: WeightRecordCreate = Body(...),
+                                  db: AsyncSession = Depends(get_db),
+                                  rabbitmq: RabbitMQClient = Depends(get_rabbitmq_client)):
+    repo = DogDBRepository(db)
+    dog_db = await repo.get_dog(dog_id)
+
+    if not dog_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Собака не найдена")
+
+    message = {"operation": "add_weight_record",
+               "dog_id": dog_id,
+               "dog_name": dog_db.name,
+               "weight": record_data.weight,
+               "notes": record_data.notes,
+               "timestamp": datetime.now().isoformat(),
+               "instance": os.getenv("INSTANCE_NAME", "unknown")}
+
+    await rabbitmq.publish_message(message)
+
+    return {"status": "accepted",
+            "message": "Запись о весе отправлена в очередь для обработки",
+            "queue": rabbitmq.queue_name,
+            "dog_id": dog_id,
+            "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/rabbitmq/messages", response_model=List[dict])
+async def get_rabbitmq_messages(limit: int = Query(100, ge=1, le=1000, description="Максимальное количество сообщений"),
+                                rabbitmq: RabbitMQClient = Depends(get_rabbitmq_client)):
+    messages = await rabbitmq.consume_all_messages()
+    return messages[:limit]
+
+
+@app.get("/api/rabbitmq/stats", response_model=dict)
+async def get_rabbitmq_stats(rabbitmq: RabbitMQClient = Depends(get_rabbitmq_client)):
+    stats = await rabbitmq.get_queue_stats()
+
+    return {**stats,
+            "instance": os.getenv("INSTANCE_NAME", "unknown"),
+            "queue_name": rabbitmq.queue_name,
+            "timestamp": datetime.now().isoformat()}
+
+
+@app.delete("/api/rabbitmq/purge", response_model=dict)
+async def purge_rabbitmq_queue(rabbitmq: RabbitMQClient = Depends(get_rabbitmq_client)):
+    """Очистить очередь RabbitMQ"""
+    result = await rabbitmq.purge_queue()
+    return result
+
+
+@app.on_event("startup")
+async def startup():
+    try:
+        await create_tables()
+        await create_application_tables()
+        rabbitmq_client = await get_rabbitmq_client()
+
+        print(f"Все таблицы успешно созданы")
+        print(f"RabbitMQ очередь: {rabbitmq_client.queue_name}")
+        print(f"Instance: {rabbitmq_client.instance_name}")
+
+    except Exception as e:
+        print(f"Ошибка при запуске: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    try:
+        rabbitmq_client = await get_rabbitmq_client()
+        await rabbitmq_client.close()
+    except Exception as e:
+        print(f"Ошибка при завершении работы: {e}")
+
+
 if __name__ == "__main__":
-    uvicorn.run("api_db:app",
+    uvicorn.run("api:app",
                 host="0.0.0.0",
                 port=8000,
                 log_level="info")

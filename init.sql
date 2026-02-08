@@ -1,8 +1,0 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-CREATE TABLE IF NOT EXISTS application_logs (
-    id SERIAL PRIMARY KEY,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    level VARCHAR(10),
-    message TEXT,
-    service VARCHAR(50));
