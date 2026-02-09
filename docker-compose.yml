@@ -25,6 +25,18 @@ services:
       retries: 3
       start_period: 60s
 
+  rabbitmq-monitor:
+    container_name: rabbitmq_monitor
+    build:
+      context: .
+      dockerfile: Dockerfile.monitor
+    networks:
+      - rabbitmq_network_1
+      - rabbitmq_network_2
+    depends_on:
+      - rabbitmq
+    command: [ "python", "monitor_all_queues.py" ]
+
   dog-weight-db:
     container_name: dog_weight_tracker_db
     image: postgres:15-alpine

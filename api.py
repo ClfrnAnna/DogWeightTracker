@@ -12,6 +12,11 @@ from Dog import Dog, ActivityLevel, WeightRecord
 from DogDBRepository import DogDBRepository
 from database import get_db, create_tables
 
+import asyncio
+from rabbitmq_client import get_rabbitmq_client
+from typing import List, Dict, Any
+from pydantic import BaseModel
+
 app = FastAPI(title="Dog Weight Tracker API (Database)",
               description="REST API микросервис для отслеживания веса собак с PostgreSQL",
               version="2.0.0",
@@ -28,9 +33,138 @@ app.add_middleware(CORSMiddleware,
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
-@app.on_event("startup")
-async def startup():
-    await create_tables()
+class HealthResponse(BaseModel):
+    status: str
+    timestamp: datetime
+    service: str
+    version: str
+    dogs_count: int
+    records_count: int
+    rabbitmq: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Информация о RabbitMQ")
+
+
+class QueueMessageResponse(BaseModel):
+    message_id: str
+    type: str
+    instance: int
+    timestamp: float
+    data: Dict[str, Any]
+    queue_name: str
+
+
+class QueueStatsResponse(BaseModel):
+    instance_number: int
+    queue_name: str
+    message_count: int
+    consumer_count: int
+    state: str
+    available_messages: List[QueueMessageResponse]
+
+
+@app.get("/api/rabbitmq/messages", response_model=List[QueueMessageResponse])
+async def get_all_messages(auto_ack: bool = Query(True, description="Автоматически подтверждать прочитанные сообщения"),
+                           limit: int = Query(100, ge=1, le=1000, description="Максимальное количество сообщений"),
+                           rabbitmq_client=Depends(get_rabbitmq_client)):
+    messages = await rabbitmq_client.get_all_messages(max_messages=limit,
+                                                      auto_ack=auto_ack)
+
+    result = []
+    for msg in messages:
+        response = QueueMessageResponse(message_id=f"msg_{hash(str(msg))}",
+                                        type=msg.get('type', 'unknown'),
+                                        instance=msg.get('instance', rabbitmq_client.instance_number),
+                                        timestamp=msg.get('timestamp', 0),
+                                        data=msg.get('data', {}),
+                                        queue_name=rabbitmq_client.queue_name)
+        result.append(response)
+
+    return result
+
+
+@app.get("/api/rabbitmq/messages/peek", response_model=List[QueueMessageResponse])
+async def peek_messages(limit: int = Query(50, ge=1, le=200, description="Количество сообщений для просмотра"),
+                        rabbitmq_client=Depends(get_rabbitmq_client)):
+    messages = await rabbitmq_client.peek_messages(limit=limit)
+
+    result = []
+    for msg in messages:
+        response = QueueMessageResponse(message_id=f"peek_{hash(str(msg))}",
+                                        type=msg.get('type', 'unknown'),
+                                        instance=msg.get('instance', rabbitmq_client.instance_number),
+                                        timestamp=msg.get('timestamp', 0),
+                                        data=msg.get('data', {}),
+                                        queue_name=rabbitmq_client.queue_name)
+        result.append(response)
+
+    return result
+
+
+@app.get("/api/rabbitmq/stats", response_model=QueueStatsResponse)
+async def get_queue_stats(rabbitmq_client=Depends(get_rabbitmq_client)):
+    queue_info = await rabbitmq_client.get_queue_info()
+    sample_messages = await rabbitmq_client.peek_messages(limit=5)
+    available_messages = []
+    for msg in sample_messages:
+        response = QueueMessageResponse(message_id=f"sample_{hash(str(msg))}",
+                                        type=msg.get('type', 'unknown'),
+                                        instance=msg.get('instance', rabbitmq_client.instance_number),
+                                        timestamp=msg.get('timestamp', 0),
+                                        data=msg.get('data', {}),
+                                        queue_name=rabbitmq_client.queue_name)
+        available_messages.append(response)
+
+    return QueueStatsResponse(instance_number=queue_info['instance_number'],
+                              queue_name=queue_info['queue_name'],
+                              message_count=queue_info.get('message_count', 0),
+                              consumer_count=queue_info.get('consumer_count', 0),
+                              state=queue_info.get('state', 'unknown'),
+                              available_messages=available_messages)
+
+
+@app.delete("/api/rabbitmq/messages/purge", response_model=Dict[str, Any])
+async def purge_queue(rabbitmq_client=Depends(get_rabbitmq_client)):
+    deleted_count = await rabbitmq_client.purge_queue()
+
+    return {"status": "success",
+            "queue_name": rabbitmq_client.queue_name,
+            "deleted_messages": deleted_count,
+            "timestamp": datetime.now().isoformat()}
+
+
+@app.post("/api/rabbitmq/test-message", response_model=Dict[str, Any])
+async def send_test_message(message_type: str = Query("test", description="Тип тестового сообщения"),
+                            data: Dict[str, Any] = Body(default={"test": "data"}),
+                            rabbitmq_client=Depends(get_rabbitmq_client)):
+    await rabbitmq_client.publish_message(message_type=message_type, data=data)
+
+    return {"status": "message_sent",
+            "queue_name": rabbitmq_client.queue_name,
+            "message_type": message_type,
+            "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/health", response_model=HealthResponse)
+async def health_check(db: AsyncSession = Depends(get_db)):
+    repo = DogDBRepository(db)
+    dogs_count = await repo.get_dogs_count()
+    records_count = await repo.get_total_records_count()
+    rabbitmq_info = {}
+    try:
+        rabbitmq_client = await get_rabbitmq_client()
+        queue_info = await rabbitmq_client.get_queue_info()
+        rabbitmq_info = {"queue_name": queue_info.get('queue_name'),
+                         "message_count": queue_info.get('message_count', 0),
+                         "queue_status": queue_info.get('state', 'unknown')}
+    except Exception as e:
+        rabbitmq_info = {"error": str(e)}
+
+    return HealthResponse(status="healthy",
+                          timestamp=datetime.now(),
+                          service="dog-weight-tracker-api-db",
+                          version="2.0.0",
+                          dogs_count=dogs_count,
+                          records_count=records_count,
+                          rabbitmq=rabbitmq_info)
 
 
 class ActivityLevelEnum(str, Enum):
@@ -147,7 +281,8 @@ async def get_all_dogs(skip: int = Query(0, ge=0, description="Количест�
 
 @app.post("/api/dogs", response_model=DogResponse, status_code=status.HTTP_201_CREATED)
 async def create_dog(dog_data: DogCreate,
-                     db: AsyncSession = Depends(get_db)):
+                     db: AsyncSession = Depends(get_db),
+                     rabbitmq_client=Depends(get_rabbitmq_client)):
     repo = DogDBRepository(db)
 
     existing_dog = await repo.get_dog_by_name(dog_data.name)
@@ -173,6 +308,12 @@ async def create_dog(dog_data: DogCreate,
 
     created_dog_db = await repo.get_dog(str(created_dog_db.id))
     created_dog = repo.convert_to_dog_object(created_dog_db)
+
+    await rabbitmq_client.publish_message(message_type="dog_created", data={"dog_id": str(created_dog_db.id),
+                                                                            "dog_name": dog.name,
+                                                                            "breed": dog.breed,
+                                                                            "action": "create",
+                                                                            "timestamp": datetime.now().isoformat()})
 
     return DogResponse(**created_dog.get_statistics())
 
@@ -244,12 +385,23 @@ async def update_dog(dog_id: str = Path(..., description="ID собаки"),
 
 @app.delete("/api/dogs/{dog_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_dog(dog_id: str = Path(..., description="ID собаки"),
-                     db: AsyncSession = Depends(get_db)):
+                     db: AsyncSession = Depends(get_db),
+                     rabbitmq_client=Depends(get_rabbitmq_client)):
     repo = DogDBRepository(db)
+    dog_db = await repo.get_dog(dog_id)
     deleted = await repo.delete_dog(dog_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Собака не найдена")
+    deleted = await repo.delete_dog(dog_id)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Собака не найдена")
+    await rabbitmq_client.publish_message(message_type="dog_deleted",
+                                          data={"dog_id": dog_id,
+                                                "dog_name": dog_db.name,
+                                                "action": "delete",
+                                                "timestamp": datetime.now().isoformat()})
 
 
 @app.get("/api/dogs/{dog_id}/records", response_model=List[dict])
@@ -273,7 +425,8 @@ async def get_dog_records(dog_id: str = Path(..., description="ID собаки")
 @app.post("/api/dogs/{dog_id}/weight", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def add_weight_record(dog_id: str = Path(..., description="ID собаки"),
                             record_data: WeightRecordCreate = Body(...),
-                            db: AsyncSession = Depends(get_db)):
+                            db: AsyncSession = Depends(get_db),
+                            rabbitmq_client=Depends(get_rabbitmq_client)):
     repo = DogDBRepository(db)
     dog_db = await repo.get_dog(dog_id)
 
@@ -285,6 +438,12 @@ async def add_weight_record(dog_id: str = Path(..., description="ID собаки
     if not record_db:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Не удалось добавить запись")
+
+    await rabbitmq_client.publish_message(message_type="weight_record_added",
+                                          data={"dog_id": dog_id,
+                                                "weight": record_data.weight,
+                                                "notes": record_data.notes,
+                                                "timestamp": datetime.now().isoformat()})
 
     return record_db.to_dict()
 
@@ -362,6 +521,29 @@ async def get_metrics(db: AsyncSession = Depends(get_db)):
             "health_stats": health_stats,
             "avg_records_per_dog": records_count / dogs_count if dogs_count else 0,
             "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/api/rabbitmq/queue-info", response_model=Dict[str, Any])
+async def get_queue_info(rabbitmq_client=Depends(get_rabbitmq_client)):
+    info = await rabbitmq_client.get_queue_info()
+    return info
+
+
+async def rabbitmq_message_handler(message: Dict[str, Any]):
+    print(f"Получено сообщение из очереди: {message}")
+
+
+@app.on_event("startup")
+async def startup():
+    await create_tables()
+    rabbitmq_client = await get_rabbitmq_client()
+    asyncio.create_task(rabbitmq_client.consume_messages(rabbitmq_message_handler))
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    rabbitmq_client = await get_rabbitmq_client()
+    await rabbitmq_client.close()
 
 
 if __name__ == "__main__":

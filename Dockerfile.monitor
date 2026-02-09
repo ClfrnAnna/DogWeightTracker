@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install aio-pika==9.3.0
+
+COPY monitor_all_queues.py .
+
+CMD ["python", "monitor_all_queues.py"]
